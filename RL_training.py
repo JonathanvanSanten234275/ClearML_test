@@ -1,5 +1,6 @@
 import os
 import wandb
+import torch
 import argparse
 from clearml import Task
 from stable_baselines3 import PPO
@@ -32,12 +33,17 @@ model = PPO('MlpPolicy', env, verbose=1,
             n_epochs=args.n_epochs, 
             tensorboard_log=f"runs/{run.id}",)
 
+device = torch.device("cpu")
+model.to(device)
+
 wandb_callback = WandbCallback(model_save_freq=1000,
                                 model_save_path=f"models/{run.id}",
                                 verbose=2,
                                 )
 
+tb_log_name="PPO_training"
+
 time_steps = 100000
 for i in range(10):
-    model.learn(total_timesteps=time_steps, callback=wandb_callback, progress_bar=True, reset_num_timesteps=False,tb_log_name=f"runs/{run.id}")
+    model.learn(total_timesteps=time_steps, callback=wandb_callback, progress_bar=True, reset_num_timesteps=False,tb_log_name=tb_log_name)
     model.save(f"models/{run.id}/{time_steps*(i+1)}")

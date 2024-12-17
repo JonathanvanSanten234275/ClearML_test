@@ -51,10 +51,15 @@ class OT2Env(gym.Env):
         self.steps = 0
         self.start_time = time.time()
         self.end_time = None
+        self.close2dish = False
+        self.close2goal = False
 
         return (observation, info)
 
     def step(self, action):
+        terminated = False
+        truncated = False
+
         # Execute one time step within the environment
         # since we are only controlling the pipette position, we accept 3 values for the action and need to append 0 for the drop action
         action = np.append(action, 0)
@@ -82,14 +87,28 @@ class OT2Env(gym.Env):
         # next we need to check if the if the task has been completed and if the episode should be terminated
         # To do this we need to calculate the distance between the pipette position and the goal position and if it is below a certain threshold, we will consider the task complete. 
         # What is a reasonable threshold? Think about the size of the pipette tip and the size of the plants.
-        if d_goal < 0.0015 and observation[6]< 0.0001:
-            terminated = True
-            # we can also give the agent a positive reward for completing the task
-            self.end_time = time.time()
-            time_taken = self.end_time - self.start_time
-            reward -= 0.05 * time_taken
-        else:
-            terminated = False
+        if d_goal < 0.015:
+
+            if self.close2dish == False:
+                self.end_time = time.time()
+                time_taken = self.end_time - self.start_time
+                reward -= 0.05 * time_taken
+                self.close2dish = True
+
+            if d_goal < 0.0015 and self.close2goal == False:
+                self.end_time = time.time()
+                time_taken = self.end_time - self.start_time
+                reward -= 0.05 * time_taken
+                self.close2goal = True
+
+            if d_goal < 0.0015 and observation[6]< 0.0001:
+                terminated = True
+                # we can also give the agent a positive reward for completing the task
+                self.end_time = time.time()
+                time_taken = self.end_time - self.start_time
+                reward -= 0.05 * time_taken
+            else:
+                terminated = False
 
         
         # next we need to check if the episode should be truncated, we can check if the current number of steps is greater than the maximum number of steps
@@ -98,7 +117,7 @@ class OT2Env(gym.Env):
         else:
             truncated = False
 
-        info = {'goal':self.goal_position}
+        info = {'goal':self.goal_position, 'd-goal': d_goal}
 
         # increment the number of steps
         self.steps += 1
