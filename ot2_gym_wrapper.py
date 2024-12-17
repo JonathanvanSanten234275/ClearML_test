@@ -87,26 +87,26 @@ class OT2Env(gym.Env):
         # next we need to check if the if the task has been completed and if the episode should be terminated
         # To do this we need to calculate the distance between the pipette position and the goal position and if it is below a certain threshold, we will consider the task complete. 
         # What is a reasonable threshold? Think about the size of the pipette tip and the size of the plants.
-        if d_goal < 0.015:
+        if d_goal < 0.01:
 
             if self.close2dish == False:
                 self.end_time = time.time()
                 time_taken = self.end_time - self.start_time
-                reward -= 0.05 * time_taken
+                reward -= 0.01 * time_taken
                 self.close2dish = True
 
-            if d_goal < 0.0015 and self.close2goal == False:
+            if d_goal < 0.005 and self.close2goal == False:
                 self.end_time = time.time()
                 time_taken = self.end_time - self.start_time
-                reward -= 0.05 * time_taken
+                reward -= 0.01 * time_taken
                 self.close2goal = True
 
-            if d_goal < 0.0015 and observation[6]< 0.0001:
+            if d_goal < 0.005 and observation[6] < 0.007:
                 terminated = True
                 # we can also give the agent a positive reward for completing the task
                 self.end_time = time.time()
                 time_taken = self.end_time - self.start_time
-                reward -= 0.05 * time_taken
+                reward -= 0.01 * time_taken
             else:
                 terminated = False
 
@@ -117,7 +117,7 @@ class OT2Env(gym.Env):
         else:
             truncated = False
 
-        info = {'goal':self.goal_position, 'd-goal': d_goal}
+        info = {'d-goal': d_goal, 'speed':observation[6]}
 
         # increment the number of steps
         self.steps += 1
