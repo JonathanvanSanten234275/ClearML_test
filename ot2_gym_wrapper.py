@@ -21,8 +21,6 @@ class OT2Env(gym.Env):
 
         # keep track of the number of steps
         self.steps = 0
-        self.start_time = None
-        self.end_time = None
         self.robotId = 0
 
     def reset(self, seed=None):
@@ -49,17 +47,22 @@ class OT2Env(gym.Env):
 
         # Reset the number of steps
         self.steps = 0
-        self.start_time = time.time()
-        self.end_time = None
+        self.set_step_2_stop = False
         self.close2dish = False
         self.close2goal = False
+        self.steps_taken_2_stop = None
+        self.stopped_at_goal = False
+        self.reward_at_dish = 0
+        self.reward_at_target = 0
+        self.reward_at_stop = 0
+        self.init_d_goal = 0
 
         return (observation, info)
 
     def step(self, action):
         terminated = False
         truncated = False
-
+        d_goal_max = 0.5975980337986396
         # Execute one time step within the environment
         # since we are only controlling the pipette position, we accept 3 values for the action and need to append 0 for the drop action
         action = np.append(action, 0)
@@ -81,32 +84,31 @@ class OT2Env(gym.Env):
         d_goal = np.linalg.norm(observation[:3] - observation[3:6])
 
         # Calculate the reward, this is something that you will need to experiment with to get the best results
-        reward = -d_goal
-        reward -= 0.1
+        if self.steps == 0:
+            self.init_d_goal = d_goal
+
+        reward = ((self.init_d_goal / d_goal_max) - (d_goal / d_goal_max))*100
+        reward -= self.steps / 10
+        base_reward = reward
         
         # next we need to check if the if the task has been completed and if the episode should be terminated
         # To do this we need to calculate the distance between the pipette position and the goal position and if it is below a certain threshold, we will consider the task complete. 
         # What is a reasonable threshold? Think about the size of the pipette tip and the size of the plants.
         if d_goal < 0.01:
-
-            if self.close2dish == False:
-                self.end_time = time.time()
-                time_taken = self.end_time - self.start_time
-                reward -= 0.01 * time_taken
-                self.close2dish = True
-
-            if d_goal < 0.005 and self.close2goal == False:
-                self.end_time = time.time()
-                time_taken = self.end_time - self.start_time
-                reward -= 0.01 * time_taken
-                self.close2goal = True
+            if self.set_step_2_stop == False:
+                self.step_2_stop = self.steps
+                self.set_step_2_stop = True
 
             if d_goal < 0.005 and observation[6] < 0.007:
                 terminated = True
-                # we can also give the agent a positive reward for completing the task
-                self.end_time = time.time()
-                time_taken = self.end_time - self.start_time
-                reward -= 0.01 * time_taken
+                self.steps_taken_2_stop = self.steps - self.step_2_stop
+                self.reward_at_stop =  max(0, 60 - 0.3 * self.steps_taken_2_stop)
+                if self.reward_at_stop == 0:
+                    reward += 1
+                    self.stopped_at_goal = True
+                else:
+                    reward += self.reward_at_stop
+                    self.stopped_at_goal = True
             else:
                 terminated = False
 
@@ -117,7 +119,10 @@ class OT2Env(gym.Env):
         else:
             truncated = False
 
-        info = {'d-goal': d_goal, 'speed':observation[6]}
+        info = {'d-goal': d_goal,
+                'speed':observation[6],
+                 'checks':{f"base reward:": base_reward,
+                           f"stopped at: {self.steps_taken_2_stop}": self.reward_at_stop}}
 
         # increment the number of steps
         self.steps += 1
